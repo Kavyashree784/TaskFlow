@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { connectDatabase } from './config/db.js';
 import authRoutes from './routes/auth.js';
 import teamRoutes from './routes/teams.js';
 import projectRoutes from './routes/projects.js';
@@ -51,6 +52,7 @@ app.use('/api/auth', rateLimit({
   message: { message: 'Too many authentication attempts. Please try again in 15 minutes.' },
 }));
 
+// Health endpoints stay available even if the database is temporarily unavailable.
 app.get('/api/health', (req, res) => res.json({
   status: 'ok',
   service: 'TaskFlow API',
@@ -60,6 +62,16 @@ app.get('/api/health', (req, res) => res.json({
 app.get('/api/health/ready', (req, res) => {
   const ready = mongoose.connection.readyState === 1;
   res.status(ready ? 200 : 503).json({ status: ready ? 'ready' : 'not_ready' });
+}));
+
+// Connect lazily and reuse the Mongoose connection across warm Vercel invocations.
+app.use(async (req, res, next) => {
+  try {
+    await connectDatabase();
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use('/api/auth', authRoutes);
