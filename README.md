@@ -57,8 +57,8 @@ flowchart LR
 **Requirements:** Node.js 20+, npm, and MongoDB (local instance or MongoDB Atlas).
 
 ```bash
-git clone https://github.com/<your-username>/<your-repository>.git
-cd <your-repository>
+git clone https://github.com/Kavyashree784/TaskFlow.git
+cd TaskFlow
 npm install
 npm run install:all
 ```
@@ -99,7 +99,21 @@ Never commit `.env` files or expose database credentials and JWT secrets. `VITE_
 
 ## Deployment
 
-The intended hosting setup is **Vercel for the frontend and API, with MongoDB Atlas for data storage**. The Express API must be configured for Vercel's serverless runtime before deployment. Deployment is not claimed as live until the hosted application and its core workflows have been tested.
+Deploy the repository as **two Vercel projects** connected to the same GitHub repository:
+
+1. **API project:** Set Root Directory to `backend`. Vercel detects the Express application exported from `src/app.js`. Add these environment variables:
+   - `MONGODB_URI` — MongoDB Atlas connection string
+   - `JWT_SECRET` — unique random value of at least 32 characters
+   - `JWT_EXPIRES_IN` — `7d` (optional)
+   - `NODE_ENV` — `production`
+   - `CLIENT_ORIGIN` — exact deployed frontend origin (for example, `https://your-frontend.vercel.app`)
+
+2. **Frontend project:** Import the same repository again and set Root Directory to `frontend`. Use the Vite preset, build command `npm run build`, and output directory `dist`. Set:
+   - `VITE_API_URL` — API deployment URL ending in `/api` (for example, `https://your-api.vercel.app/api`)
+
+Deploy the API first, then the frontend. Once the frontend URL is available, set that exact origin in the API project's `CLIENT_ORIGIN` variable and redeploy the API. Keep secrets only in Vercel environment settings; never use a `VITE_` variable for secrets.
+
+Check API health at `/api/health` and database readiness at `/api/health/ready`. Hosting is not described as live until the deployed workflows are tested.
 
 ## Current limitations
 
