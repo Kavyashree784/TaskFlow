@@ -36,7 +36,6 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '1mb' }));
 
-// A broad API limit protects expensive authenticated endpoints; auth has a tighter limit too.
 app.use('/api', rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 500,
@@ -52,17 +51,23 @@ app.use('/api/auth', rateLimit({
   message: { message: 'Too many authentication attempts. Please try again in 15 minutes.' },
 }));
 
-// Health endpoints stay available even if the database is temporarily unavailable.
+// Liveness endpoint does not depend on MongoDB.
 app.get('/api/health', (req, res) => res.json({
   status: 'ok',
   service: 'TaskFlow API',
   database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
   timestamp: new Date().toISOString(),
 }));
-app.get('/api/health/ready', (req, res) => {
-  const ready = mongoose.connection.readyState === 1;
-  res.status(ready ? 200 : 503).json({ status: ready ? 'ready' : 'not_ready' });
-}));
+
+// Readiness check actively verifies the database connection.
+app.get('/api/health/ready', async (req, res, next) => {
+  try {
+    await connectDatabase();
+    res.status(200).json({ status: 'ready' });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Connect lazily and reuse the Mongoose connection across warm Vercel invocations.
 app.use(async (req, res, next) => {
