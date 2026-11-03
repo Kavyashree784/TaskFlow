@@ -14,6 +14,11 @@ export async function connectDatabase() {
     return mongoose.connection;
   }
 
+  // A previous connection may have closed; allow a fresh connection attempt.
+  if (mongoose.connection.readyState === 0) {
+    connectionPromise = undefined;
+  }
+
   if (!connectionPromise) {
     connectionPromise = mongoose.connect(uri, {
       serverSelectionTimeoutMS: 10000,
