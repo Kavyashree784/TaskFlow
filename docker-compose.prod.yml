@@ -1,0 +1,51 @@
+# Production stack for a small Ubuntu EC2 instance + MongoDB Atlas.
+# Caddy obtains and renews HTTPS certificates automatically when DOMAIN points to this EC2 host.
+services:
+  api:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGODB_URI: ${MONGODB_URI:?Set the MongoDB Atlas connection string in .env}
+      JWT_SECRET: ${JWT_SECRET:?Set a unique JWT_SECRET in .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      CLIENT_ORIGIN: https://${DOMAIN:?Set DOMAIN to a DNS name pointing to this EC2 instance}
+      TRUST_PROXY: "2"
+    expose:
+      - "5000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5000/api/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    expose:
+      - "80"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - web
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN to a DNS name pointing to this EC2 instance}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - taskflow_caddy_data:/data
+      - taskflow_caddy_config:/config
+
+volumes:
+  taskflow_caddy_data:
+  taskflow_caddy_config:
